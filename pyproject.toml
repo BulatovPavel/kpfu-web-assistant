@@ -1,16 +1,26 @@
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"
 
 [project]
-name = "my-awesome-package"
-version = "0.0.1"
-description = "Краткое описание проекта"
+name = "kpfu-web-assistant"
+version = "0.1.0"
+description = "RAG-ассистент по официальному сайту Казанского федерального университета"
 readme = "README.md"
 requires-python = ">=3.10"
-
 license = { text = "MIT" }
 dependencies = [
-    "requests>=2.25.0",
-    "pydantic>=2.0.0"
+    "beautifulsoup4>=4.12.0",
+    "fastapi>=0.115.0",
+    "httpx>=0.27.0",
+    "pydantic-settings>=2.6.0",
+    "uvicorn[standard]>=0.32.0"
 ]
+
+[tool.poetry]
+package-mode = false
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.0.0"
+pytest-asyncio = ">=0.24.0"
+ruff = ">=0.8.0"
