@@ -38,7 +38,8 @@ Validator → Critic → Editor
 
 - Python 3.10+;
 - FastAPI и Uvicorn;
-- PostgreSQL или SQLite на раннем этапе;
+- PostgreSQL в Docker Compose;
+- SQLite только для изолированных тестов;
 - Qdrant для векторного поиска;
 - BM25 для лексического поиска;
 - Sentence Transformers для embeddings;
@@ -61,7 +62,7 @@ Validator → Critic → Editor
 
 - [x] Этап 1: выбор темы и настройка окружения
 - [x] Этап 2: архитектура и каркас приложения
-- [ ] Этап 3: база данных
+- [x] Этап 3: база данных
 - [ ] Этап 4: аутентификация и авторизация
 - [ ] Этап 5: базовый класс агента и Supervisor
 - [ ] Этап 6: Validator
@@ -73,6 +74,7 @@ Validator → Critic → Editor
 
 - [Отчёт по этапу 1: выбор темы и настройка окружения](docs/stage-01-environment.md)
 - [Отчёт по этапу 2: архитектура и каркас приложения](docs/stage-02-architecture.md)
+- [Отчёт по этапу 3: база данных](docs/stage-03-database.md)
 
 Архитектурные правила, требования к type hints, docstrings, чистой архитектуре и SOLID описаны в [architecture-principles.md](docs/architecture-principles.md).
 

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.core.config import settings
 from backend.core.constants import APP_VERSION, HEALTHCHECK_PATH
+from backend.db.session import create_tables, dispose_engine
 from backend.utils.logging import configure_logging
 
 logger = logging.getLogger(__name__)
@@ -18,9 +19,13 @@ async def lifespan(_: FastAPI):
     """Настроить сервисы приложения при запуске и завершении работы."""
 
     configure_logging(settings)
+    await create_tables()
     logger.info("Application started: %s", settings.app_name)
-    yield
-    logger.info("Application stopped")
+    try:
+        yield
+    finally:
+        await dispose_engine()
+        logger.info("Application stopped")
 
 
 app = FastAPI(

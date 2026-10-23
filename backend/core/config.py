@@ -27,7 +27,10 @@ class Settings(BaseSettings):
     api_prefix: str = "/api"
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8501"]
 
-    database_url: str = "sqlite+aiosqlite:///./data/app.db"
+    database_url: str = (
+        "postgresql+asyncpg://kpfu:kpfu_local_password@localhost:5432/"
+        "kpfu_assistant"
+    )
 
     llm_provider: str = "ollama"
     llm_model: str = "qwen2.5:7b"
