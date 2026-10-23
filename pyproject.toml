@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "RAG-ассистент по официальному сайту Казанского федерального университета"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 dependencies = [
     "beautifulsoup4>=4.12.0",
     "fastapi>=0.115.0",

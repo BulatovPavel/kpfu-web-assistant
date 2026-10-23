@@ -38,6 +38,9 @@ pip-delete-this-directory.txt
 *.bak
 *.local
 
+# Application logs
+logs/
+
 # === Настройки сред разработки (IDE) ===
 # VS Code
 .vscode/
