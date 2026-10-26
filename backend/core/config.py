@@ -4,10 +4,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator, model_validator
 
-
+# TODO: Посмотреть на поля Settings, может какие-то нужно добавить
 class Settings(BaseSettings):
     """Типизированная конфигурация API и будущих RAG-сервисов."""
 
@@ -55,6 +55,21 @@ class Settings(BaseSettings):
 
         return Path(self.log_file)
 
+    _DEFAULT_JWT_SECRET = "change-me-in-local-env"
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        if not self.debug:
+            if self.jwt_secret_key == self._DEFAULT_JWT_SECRET:
+                raise ValueError(
+                    "jwt_secret_key must be set to a non-default value "
+                    "when DEBUG=false"
+                )
+            if len(self.jwt_secret_key) < 32:
+                raise ValueError(
+                    "jwt_secret_key must be at least 32 characters "
+                    "when DEBUG=false"
+                )
+        return self
 
 @lru_cache
 def get_settings() -> Settings:
