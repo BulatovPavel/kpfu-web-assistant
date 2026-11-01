@@ -3,15 +3,18 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
-from backend.core.config import settings
-from backend.core.constants import APP_VERSION, HEALTHCHECK_PATH, LANGUAGES
+from backend.core.config import get_settings
+from backend.core.constants import LANGUAGES
+from backend.core.exceptions import RUNGException
 from backend.db.session import create_tables, dispose_engine
 from backend.utils.logging import configure_logging
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 @asynccontextmanager
@@ -20,7 +23,7 @@ async def lifespan(_: FastAPI):
 
     configure_logging(settings)
     await create_tables()
-    logger.info("Application started: %s", settings.app_name)
+    logger.info("Application started: %s", settings.PROJECT_NAME)
     try:
         yield
     finally:
@@ -29,30 +32,42 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title=settings.app_name,
-    version=APP_VERSION,
+    title=settings.PROJECT_NAME,
     description="RAG-ассистент по официальным материалам КФУ",
-    debug=settings.debug,
+    debug=settings.DEBUG,
     lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    allow_origins=["*"] if settings.DEBUG else settings.cors_origins_list,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+
+@app.exception_handler(RUNGException)
+async def rung_exception_handler(
+    _: Request,
+    exception: RUNGException,
+) -> JSONResponse:
+    """Преобразовать доменное исключение в структурированный HTTP-ответ."""
+
+    return JSONResponse(
+        status_code=exception.status_code,
+        content=exception.to_dict(),
+    )
+
 @app.get("/")
 async def root():
-    return {"message": f"{settings.app_name} is running!"}
+    return {"message": f"{settings.PROJECT_NAME} is running!"}
 
-@app.get(HEALTHCHECK_PATH, tags=["system"])
+@app.get("/healthz", tags=["system"])
 async def healthcheck() -> dict[str, str]:
     """Вернуть состояние сервиса для проверки доступности приложения."""
 
-    return {"status": "ok", "service": settings.app_name, "version": APP_VERSION}
+    return {"status": "ok"}
 
 @app.get("/languages")
 async def languages():

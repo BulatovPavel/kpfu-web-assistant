@@ -1,13 +1,25 @@
-"""Запуск приложения в режиме разработки."""
-
 import uvicorn
+from backend.utils.logging import setup_logging
 
-from backend.core.config import settings
+logger = setup_logging()
+logger.info("=" * 60)
+logger.info("RUNG Application Starting")
+logger.info("=" * 60)
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "backend.api.main:app",
-        host=settings.api_host,
-        port=settings.api_port,
-        reload=settings.debug,
-    )
+    try:
+        uvicorn.run(
+            "backend.api.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=False,
+            log_level="warning"
+        )
+    except KeyboardInterrupt:
+        logger.info("Application stopped by user")
+    except Exception as e:
+        logger.error("Application crashed: %s", e, exc_info=True)
+    finally:
+        logger.info("=" * 60)
+        logger.info("RUNG Application Shutdown")
+        logger.info("=" * 60)

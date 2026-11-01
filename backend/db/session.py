@@ -15,8 +15,8 @@ from backend.core.config import settings
 from backend.db.models import Base
 
 DATABASE_ENGINE: Final[AsyncEngine] = create_async_engine(
-    settings.database_url,
-    echo=settings.debug,
+    settings.ASYNC_DATABASE_URL,
+    echo=settings.DEBUG,
     pool_pre_ping=True,
 )
 SESSION_FACTORY: Final[async_sessionmaker[AsyncSession]] = async_sessionmaker(
@@ -36,8 +36,8 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 async def create_tables() -> None:
     """Создать все таблицы, описанные в ORM-моделях."""
 
-    if settings.database_url.startswith("sqlite"):
-        database_path = settings.database_url.split("///", maxsplit=1)[-1]
+    if settings.ASYNC_DATABASE_URL.startswith("sqlite"):
+        database_path = settings.ASYNC_DATABASE_URL.split("///", maxsplit=1)[-1]
         if database_path != ":memory:":
             Path(database_path).parent.mkdir(parents=True, exist_ok=True)
 

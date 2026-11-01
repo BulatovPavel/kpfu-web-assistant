@@ -8,8 +8,6 @@ directly, without network and without uvicorn.
 from fastapi.testclient import TestClient
 
 from backend.api.main import app
-from backend.core.constants import APP_VERSION
-from backend.core.config import settings
 
 
 client = TestClient(app)
@@ -34,7 +32,7 @@ class TestHealthz:
 
     def test_healthz_returns_ok_status(self):
         response = client.get("/healthz")
-        assert response.json() == {"status": "ok", "service": settings.app_name, "version": APP_VERSION}
+        assert response.json() == {"status": "ok"}
 
 
 class TestLanguages:
