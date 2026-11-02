@@ -1,51 +1,47 @@
-"""Асинхронное подключение к базе данных."""
-
-from collections.abc import AsyncGenerator
-from pathlib import Path
-from typing import Final
+from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
 
-from backend.core.config import settings
-from backend.db.models import Base
+from backend.core.config import get_settings
 
-DATABASE_ENGINE: Final[AsyncEngine] = create_async_engine(
+settings = get_settings()
+
+# ---------------------------------------------------------------------------
+# Async engine
+# ---------------------------------------------------------------------------
+
+async_engine = create_async_engine(
     settings.ASYNC_DATABASE_URL,
     echo=settings.DEBUG,
+    pool_size=10,
+    max_overflow=20,
     pool_pre_ping=True,
 )
-SESSION_FACTORY: Final[async_sessionmaker[AsyncSession]] = async_sessionmaker(
-    bind=DATABASE_ENGINE,
+
+AsyncSessionLocal = async_sessionmaker(
+    async_engine,
     class_=AsyncSession,
     expire_on_commit=False,
+    autoflush=False,
 )
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """Предоставить асинхронную сессию базы данных для одного запроса."""
+async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    FastAPI dependency that yields an async session.
 
-    async with SESSION_FACTORY() as session:
+    This is the single source of truth for async session management
+    across the application. Routers and helpers import it from here
+    (directly or via ``backend.api.deps``).
+    """
+    async with AsyncSessionLocal() as session:
         yield session
 
 
-async def create_tables() -> None:
-    """Создать все таблицы, описанные в ORM-моделях."""
-
-    if settings.ASYNC_DATABASE_URL.startswith("sqlite"):
-        database_path = settings.ASYNC_DATABASE_URL.split("///", maxsplit=1)[-1]
-        if database_path != ":memory:":
-            Path(database_path).parent.mkdir(parents=True, exist_ok=True)
-
-    async with DATABASE_ENGINE.begin() as connection:
-        await connection.run_sync(Base.metadata.create_all)
-
-
-async def dispose_engine() -> None:
-    """Освободить соединения с базой данных при остановке приложения."""
-
-    await DATABASE_ENGINE.dispose()
+# Alias with a shorter, familiar name. Both refer to the same callable,
+# so ``Depends(get_db)`` and ``Depends(get_async_session)`` are equivalent.
+get_db = get_async_session
