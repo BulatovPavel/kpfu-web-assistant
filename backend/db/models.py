@@ -1,154 +1,214 @@
-"""ORM-модели для хранения данных RAG-ассистента."""
+import uuid
 
-from datetime import datetime
-from typing import Any
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
+from sqlalchemy.orm import declarative_base
 
-from sqlalchemy import JSON, DateTime, Float, Integer, String, Text, func
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+Base = declarative_base()
 
 
-class Base(DeclarativeBase):
-    """Базовый класс всех SQLAlchemy-моделей приложения."""
+class GlossaryDB(Base):
+    __tablename__ = "glossaries"
 
+    id = Column(String, primary_key=True)
+    source_lang = Column(String, nullable=False)
+    target_lang = Column(String, nullable=False)
+    source_text = Column(Text, nullable=False)
+    target_text = Column(Text, nullable=False)
 
-class User(Base):
-    """Пользователь приложения и его роль доступа."""
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
 
-    __tablename__ = "users"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
-    username: Mapped[str] = mapped_column(String(100), unique=True, index=True)
-    hashed_password: Mapped[str] = mapped_column(String(255))
-    role: Mapped[str] = mapped_column(String(30), default="user")
-    is_active: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+    # Only (source_lang, target_lang) is indexed. ``source_text`` used to
+    # be part of the index, but its length can exceed the Postgres B-tree
+    # key limit (2704 bytes) and made INSERT fail on long terms. It did
+    # not help any query either:
+    #   - get_entries searches with ILIKE '%...%' (a B-tree is useless);
+    #   - list_all filters by source_lang/target_lang.
+    __table_args__ = (
+        Index(
+            "ix_glossaries_langs",
+            "source_lang",
+            "target_lang",
+        ),
     )
 
 
-class KnowledgeBaseEntry(Base):
-    """Эталонная запись базы знаний или фрагмент источника."""
+class TMDB(Base):
+    __tablename__ = "translation_memories"
 
-    __tablename__ = "knowledge_base"
+    id = Column(String, primary_key=True)
+    source_lang = Column(String, nullable=False)
+    target_lang = Column(String, nullable=False)
+    source_text = Column(Text, nullable=False)
+    target_text = Column(Text, nullable=False)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_text: Mapped[str] = mapped_column(Text)
-    target_text: Mapped[str] = mapped_column(Text)
-    category: Mapped[str] = mapped_column(String(100), index=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
     )
 
-
-class GlossaryEntry(Base):
-    """Термин и его определение для нормализации запросов."""
-
-    __tablename__ = "glossary"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    term: Mapped[str] = mapped_column(String(255), index=True)
-    definition_translation: Mapped[str] = mapped_column(Text)
-    category: Mapped[str] = mapped_column(String(100), index=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+    # See the comment above. ``source_text`` is not part of the index
+    # because it can hold tens of kilobytes (hadiths, book chapters) and
+    # would make INSERT fail with:
+    #   index row size 4320 exceeds btree version 4 maximum 2704
+    # for index "ix_tm_langs_text"
+    __table_args__ = (
+        Index(
+            "ix_tm_langs",
+            "source_lang",
+            "target_lang",
+        ),
     )
 
 
 class UncertainExample(Base):
-    """Сомнительный пример для последующей проверки человеком."""
-
     __tablename__ = "uncertain_examples"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    input_text: Mapped[str] = mapped_column(Text)
-    model_output: Mapped[str] = mapped_column(Text)
-    critic_score: Mapped[float | None] = mapped_column(Float, nullable=True)
-    status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    source_text = Column(Text, nullable=False)
+    source_lang = Column(String, nullable=False)
+    target_lang = Column(String, nullable=False)
+    machine_translation = Column(Text, nullable=False)
+    corrected_translation = Column(Text, nullable=True)
+    critic_score = Column(Float, nullable=True)
+    validation_passed = Column(Boolean, default=False)
+    status = Column(String, default="pending")
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    confirmed_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    __table_args__ = (
+        # get_pending_examples / count_pending:
+        #   WHERE status='pending' ORDER BY created_at DESC
+        Index(
+            "ix_uncertain_status_created_at",
+            "status",
+            "created_at",
+        ),
+        # Same queries with an optional (source_lang, target_lang) filter.
+        Index(
+            "ix_uncertain_langs_status_created_at",
+            "source_lang",
+            "target_lang",
+            "status",
+            "created_at",
+        ),
     )
 
 
-class CacheEntry(Base):
-    """Кэшированный результат обработки пользовательского запроса."""
+class TranslationCache(Base):
+    """
+    Persistent translation cache.
 
-    __tablename__ = "cache"
+    Cache key:
+        (source_lang, target_lang, engine_used, eval_mode,
+         model_used, source_text)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    input_key: Mapped[str] = mapped_column(String(128), unique=True, index=True)
-    output: Mapped[str] = mapped_column(Text)
-    hits: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+    - ``eval_mode`` separates baseline / glossary / tm / tm_hybrid / full.
+    - ``model_used`` separates runs that use different LLM or HF models,
+      so switching ``LLM_MODEL`` / ``HF_TRANSLATION_MODEL`` does not
+      return stale translations.
+    - All key columns except ``source_text`` are NOT NULL with the
+      sentinel ``"unknown"``. SQL treats NULL as distinct in UNIQUE
+      constraints, so a NULL-able key column would silently allow
+      duplicate rows.
+    """
+
+    __tablename__ = "translation_cache"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    source_text = Column(Text, nullable=False)
+    source_lang = Column(String, nullable=False)
+    target_lang = Column(String, nullable=False)
+    translation = Column(Text, nullable=False)
+    model_used = Column(
+        String,
+        nullable=False,
+        default="unknown",
+        server_default="unknown",
+    )
+    engine_used = Column(
+        String,
+        nullable=False,
+        default="unknown",
+        server_default="unknown",
+    )
+    eval_mode = Column(
+        String,
+        nullable=False,
+        default="unknown",
+        server_default="unknown",
+    )
+    hits = Column(Integer, default=1, nullable=False)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source_lang",
+            "target_lang",
+            "engine_used",
+            "eval_mode",
+            "model_used",
+            "source_text",
+            name="unique_translation_engine_mode_model",
+        ),
+        # Standalone index on eval_mode. clear_cache() can filter by
+        # eval_mode alone (no language filter), and get_cached() always
+        # constrains on it. The UniqueConstraint above has eval_mode in
+        # the middle, so a prefix scan cannot use it.
+        Index("ix_cache_eval_mode", "eval_mode"),
     )
 
 
-class EvaluationResult(Base):
-    """Результат оценки качества модели или режима работы."""
+class User(Base):
+    __tablename__ = "users"
 
-    __tablename__ = "evaluation_results"
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String, unique=True, nullable=False)
+    username = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String, nullable=True)
+    role = Column(String, default="user")
+    is_active = Column(Boolean, default=True)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    model_name: Mapped[str] = mapped_column(String(100), index=True)
-    mode: Mapped[str] = mapped_column(String(50), index=True)
-    sample_size: Mapped[int] = mapped_column(Integer)
-    metrics_json: Mapped[dict[str, Any]] = mapped_column(JSON)
-    evaluation_time: Mapped[float | None] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
     )
 
-
-class ModelComparison(Base):
-    """Сравнение нескольких моделей или режимов генерации."""
-
-    __tablename__ = "model_comparisons"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    models_compared: Mapped[list[str]] = mapped_column(JSON)
-    sample_size: Mapped[int] = mapped_column(Integer)
-    results_json: Mapped[dict[str, Any]] = mapped_column(JSON)
-    winner: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+    __table_args__ = (
+        Index("ix_users_email", "email"),
+        Index("ix_users_username", "username"),
+        Index("ix_users_role", "role"),
     )
 
-
-class ReasoningLog(Base):
-    """Краткая трассировка этапа работы агента или супервизора."""
-
-    __tablename__ = "reasoning_logs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    request_id: Mapped[str] = mapped_column(String(100), index=True)
-    agent_name: Mapped[str] = mapped_column(String(100), index=True)
-    input_summary: Mapped[str] = mapped_column(Text)
-    output_summary: Mapped[str] = mapped_column(Text)
-    model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    parameters: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    finished_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    status: Mapped[str] = mapped_column(String(30), index=True)
-
-
-class LLMCall(Base):
-    """Метаданные отдельного вызова LLM без хранения секретных промптов."""
-
-    __tablename__ = "llm_calls"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    request_id: Mapped[str] = mapped_column(String(100), index=True)
-    agent_name: Mapped[str] = mapped_column(String(100), index=True)
-    model_name: Mapped[str] = mapped_column(String(100))
-    provider: Mapped[str] = mapped_column(String(50))
-    prompt_hash: Mapped[str] = mapped_column(String(128))
-    response_hash: Mapped[str] = mapped_column(String(128))
-    tokens_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    status: Mapped[str] = mapped_column(String(30), index=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    def __repr__(self):
+        return f"<User {self.email} ({self.role})>"
