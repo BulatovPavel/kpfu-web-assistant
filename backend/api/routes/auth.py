@@ -26,7 +26,6 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     username: str
     password: str
-    full_name: str | None = None
 
     @field_validator("password")
     @classmethod
@@ -103,7 +102,6 @@ async def register(
         email=request.email,
         username=request.username,
         hashed_password=get_password_hash(request.password),
-        full_name=request.full_name,
         role="user",
     )
     session.add(user)
