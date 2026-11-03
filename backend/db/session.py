@@ -49,3 +49,5 @@ async def dispose_engine() -> None:
     """Освободить соединения с базой данных при остановке приложения."""
 
     await DATABASE_ENGINE.dispose()
+
+get_db = get_session
