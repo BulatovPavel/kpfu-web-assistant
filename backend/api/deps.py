@@ -39,7 +39,12 @@ async def get_current_user(
         )
 
     payload = decode_token(credentials.credentials)
-    user_id = _user_id_from_payload(payload)
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
 
 
     result = await db.execute(
@@ -88,7 +93,7 @@ async def optional_user(
 
     try:
         payload = decode_token(credentials.credentials)
-        user_id = _user_id_from_payload(payload)
+        user_id = payload.get("sub")
         if not user_id:
             return None
 

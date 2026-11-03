@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from backend.api.routes import auth
 from backend.core.config import get_settings
 from backend.core.constants import LANGUAGES
 from backend.core.exceptions import RUNGException
@@ -46,7 +47,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.exception_handler(RUNGException)
 async def rung_exception_handler(
     _: Request,
@@ -58,6 +58,8 @@ async def rung_exception_handler(
         status_code=exception.status_code,
         content=exception.to_dict(),
     )
+
+app.include_router(auth.router)
 
 @app.get("/")
 async def root():
