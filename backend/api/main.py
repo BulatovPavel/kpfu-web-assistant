@@ -1,18 +1,19 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
 
 from backend.api.routes import health
 from backend.api.routes import auth
 from backend.core.config import get_settings
 from backend.core.constants import LANGUAGES
 from backend.core.exceptions import RUNGException
-from backend.db.models import Base
-from backend.db.session import async_engine
+from backend.db.session import create_tables, dispose_engine
+from backend.utils.logging import configure_logging
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 _POST_CREATE_STATEMENTS = (
@@ -22,16 +23,18 @@ _POST_CREATE_STATEMENTS = (
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    async with async_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        for statement in _POST_CREATE_STATEMENTS:
-            await conn.execute(text(statement))
+async def lifespan(_: FastAPI):
+    """Настроить сервисы приложения при запуске и завершении работы."""
+
+    configure_logging(settings)
+    await create_tables()
+    logger.info("Application started: %s", settings.PROJECT_NAME)
     try:
         yield
     finally:
-        # Этап 8: сюда добавится await close_ollama_clients()
-        pass
+        await dispose_engine()
+        logger.info("Application stopped")
+
 
 
 app = FastAPI(
@@ -70,7 +73,6 @@ async def rung_exception_handler(
 
 
 app.include_router(health.router)
-
 app.include_router(auth.router)
 
 @app.get("/")

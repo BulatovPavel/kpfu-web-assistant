@@ -50,11 +50,11 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-# TODO: сейчас User.id: int, определиться, не сделать ли его UUID
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    user_id: int
+    user_id: str
     email: str
     role: str
     username: str
@@ -64,7 +64,7 @@ def _issue_token(user: User) -> TokenResponse:
     token = create_access_token(data={"sub": str(user.id), "role": user.role})
     return TokenResponse(
         access_token=token,
-        user_id=user.id,
+        user_id=str(user.id),
         email=user.email,
         role=user.role,
         username=user.username,

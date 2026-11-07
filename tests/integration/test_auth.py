@@ -87,7 +87,7 @@ def test_register_returns_token_and_default_user_role(api_client) -> None:
     assert body["role"] == "user"
     assert body["email"] == "alice@example.com"
     assert body["username"] == "alice"
-    assert isinstance(body["user_id"], int)
+    assert isinstance(body["user_id"], str)
     assert "hashed_password" not in body
 
 

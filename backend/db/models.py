@@ -1,6 +1,8 @@
+from ast import In
 import uuid
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Column,
     DateTime,
@@ -16,6 +18,68 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
+class KnowledgeBaseEntry(Base):
+    __tablename__ = "knowledge_base"
+
+    id = Column(Integer, primary_key=True)
+    source_text = Column(Text, nullable=False)
+    target_text = Column(Text, nullable=False)
+    category = Column(String(100), index=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class EvaluationResult(Base):
+    __tablename__ = "evaluation_results"
+
+    id = Column(Integer, primary_key=True)
+    model_name = Column(String(100), index=True, nullable=False)
+    mode = Column(String(50), index=True, nullable=False)
+    sample_size = Column(Integer, nullable=False)
+    metrics_json = Column(JSON, nullable=False)
+    evaluation_time = Column(Float, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ModelComparison(Base):
+    __tablename__ = "model_comparisons"
+
+    id = Column(Integer, primary_key=True)
+    models_compared = Column(JSON, nullable=False)
+    sample_size = Column(Integer, nullable=False)
+    results_json = Column(JSON, nullable=False)
+    winner = Column(String(100), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReasoningLog(Base):
+    __tablename__ = "reasoning_logs"
+
+    id = Column(Integer, primary_key=True)
+    request_id = Column(String(100), index=True, nullable=False)
+    agent_name = Column(String(100), index=True, nullable=False)
+    input_summary = Column(Text, nullable=False)
+    output_summary = Column(Text, nullable=False)
+    model_name = Column(String(100), nullable=True)
+    parameters = Column(JSON, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String(30), index=True, nullable=False)
+
+
+class LLMCall(Base):
+    __tablename__ = "llm_calls"
+
+    id = Column(Integer, primary_key=True)
+    request_id = Column(String(100), index=True, nullable=False)
+    agent_name = Column(String(100), index=True, nullable=False)
+    model_name = Column(String(100), nullable=False)
+    provider = Column(String(50), nullable=False)
+    prompt_hash = Column(String(128), nullable=False)
+    response_hash = Column(String(128), nullable=False)
+    tokens_used = Column(Integer, nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    status = Column(String(30), index=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class GlossaryDB(Base):
     __tablename__ = "glossaries"
@@ -46,32 +110,32 @@ class GlossaryDB(Base):
     )
 
 
-class TMDB(Base):
-    __tablename__ = "translation_memories"
+# class TMDB(Base):
+#     __tablename__ = "translation_memories"
 
-    id = Column(String, primary_key=True)
-    source_lang = Column(String, nullable=False)
-    target_lang = Column(String, nullable=False)
-    source_text = Column(Text, nullable=False)
-    target_text = Column(Text, nullable=False)
+#     id = Column(String, primary_key=True)
+#     source_lang = Column(String, nullable=False)
+#     target_lang = Column(String, nullable=False)
+#     source_text = Column(Text, nullable=False)
+#     target_text = Column(Text, nullable=False)
 
-    created_at = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-    )
+#     created_at = Column(
+#         DateTime(timezone=True),
+#         server_default=func.now(),
+#     )
 
-    # See the comment above. ``source_text`` is not part of the index
-    # because it can hold tens of kilobytes (hadiths, book chapters) and
-    # would make INSERT fail with:
-    #   index row size 4320 exceeds btree version 4 maximum 2704
-    # for index "ix_tm_langs_text"
-    __table_args__ = (
-        Index(
-            "ix_tm_langs",
-            "source_lang",
-            "target_lang",
-        ),
-    )
+#     # See the comment above. ``source_text`` is not part of the index
+#     # because it can hold tens of kilobytes (hadiths, book chapters) and
+#     # would make INSERT fail with:
+#     #   index row size 4320 exceeds btree version 4 maximum 2704
+#     # for index "ix_tm_langs_text"
+#     __table_args__ = (
+#         Index(
+#             "ix_tm_langs",
+#             "source_lang",
+#             "target_lang",
+#         ),
+#     )
 
 
 class UncertainExample(Base):
@@ -133,7 +197,7 @@ class TranslationCache(Base):
       duplicate rows.
     """
 
-    __tablename__ = "translation_cache"
+    __tablename__ = "cache"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     source_text = Column(Text, nullable=False)
@@ -186,7 +250,7 @@ class TranslationCache(Base):
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(Integer, primary_key=True,  autoincrement=True)
     email = Column(String, unique=True, nullable=False)
     username = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)

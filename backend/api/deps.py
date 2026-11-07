@@ -16,14 +16,14 @@ def _user_id_from_payload(payload: dict) -> int:
     if not isinstance(subject, str) or not subject.isascii() or not subject.isdecimal():
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
+            detail="Invalid token: not a number",
         )
 
     user_id = int(subject)
     if user_id <= 0:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
+            detail="Invalid token: invalid number",
         )
     return user_id
 

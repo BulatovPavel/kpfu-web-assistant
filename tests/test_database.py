@@ -11,7 +11,7 @@ from backend.db.models import Base
 REQUIRED_TABLES = {
     "users",
     "knowledge_base",
-    "glossary",
+    "glossaries",
     "uncertain_examples",
     "cache",
     "evaluation_results",
