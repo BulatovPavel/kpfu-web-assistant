@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -7,12 +8,9 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from backend.core.config import get_settings
+from backend.db.models import Base
 
 settings = get_settings()
-
-# ---------------------------------------------------------------------------
-# Async engine
-# ---------------------------------------------------------------------------
 
 async_engine = create_async_engine(
     settings.ASYNC_DATABASE_URL,
@@ -42,6 +40,21 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-# Alias with a shorter, familiar name. Both refer to the same callable,
-# so ``Depends(get_db)`` and ``Depends(get_async_session)`` are equivalent.
+async def create_tables() -> None:
+    """Создать все таблицы, описанные в ORM-моделях."""
+
+    if settings.ASYNC_DATABASE_URL.startswith("sqlite"):
+        database_path = settings.ASYNC_DATABASE_URL.split("///", maxsplit=1)[-1]
+        if database_path != ":memory:":
+            Path(database_path).parent.mkdir(parents=True, exist_ok=True)
+
+    async with async_engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all)
+
+
+async def dispose_engine() -> None:
+    """Освободить соединения с базой данных при остановке приложения."""
+
+    await async_engine.dispose()
+
 get_db = get_async_session

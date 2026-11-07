@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from backend.api.routes import health
+from backend.api.routes import auth
 from backend.core.config import get_settings
 from backend.core.constants import LANGUAGES
 from backend.core.exceptions import RUNGException
@@ -14,21 +15,7 @@ from backend.db.session import async_engine
 
 settings = get_settings()
 
-# Idempotent index migrations for deployments on an existing volume.
-#
-# ``Base.metadata.create_all`` only creates tables and indexes that do
-# not yet exist. When a new Index is added to a model, existing
-# databases never receive it — the volume survives the container
-# restart, but its schema is frozen at the moment of the first start.
-#
-# Each statement here is a no-op on a fresh database (create_all
-# already created the index) and a safe migration on an existing one.
-# ``IF NOT EXISTS`` is understood by both Postgres and SQLite, so the
-# same code path works in production and in tests.
 _POST_CREATE_STATEMENTS = (
-    # translation_cache.eval_mode is filtered on by get_cached() and
-    # clear_cache(), but the UniqueConstraint places it in the middle
-    # of a 6-column key, so a prefix scan cannot use it.
     "CREATE INDEX IF NOT EXISTS ix_cache_eval_mode "
     "ON translation_cache (eval_mode)",
 )
@@ -61,7 +48,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.exception_handler(RUNGException)
 async def rung_exception_handler(
     request: Request,
@@ -85,6 +71,7 @@ async def rung_exception_handler(
 
 app.include_router(health.router)
 
+app.include_router(auth.router)
 
 @app.get("/")
 async def root():
