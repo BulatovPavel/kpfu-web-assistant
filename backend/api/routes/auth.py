@@ -61,7 +61,7 @@ class TokenResponse(BaseModel):
 
 
 def _issue_token(user: User) -> TokenResponse:
-    token = create_access_token(data={"sub": user.id, "role": user.role})
+    token = create_access_token(data={"sub": str(user.id), "role": user.role})
     return TokenResponse(
         access_token=token,
         user_id=user.id,
